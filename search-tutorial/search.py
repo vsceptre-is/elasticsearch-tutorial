@@ -27,7 +27,10 @@ class Search:
             'properties': {
                 'embedding': {
                     'type': 'dense_vector',
-                }
+                },
+                'elser_embedding': {
+                    'type': 'sparse_vector',
+                },
             }
         })
     # def insert_document(self, document):
