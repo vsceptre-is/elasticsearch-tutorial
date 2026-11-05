@@ -19,37 +19,56 @@ def handle_search():
 
     if parsed_query:
         search_query = {
-            'must': {
-                'multi_match': {
-                    'query': parsed_query,
-                    'fields': ['name', 'summary', 'content'],
-                }
-            }
+            'sub_searches': [
+                {
+                    'query': {
+                        'bool': {
+                            'must': {
+                                'multi_match': {
+                                    'query': parsed_query,
+                                    'fields': ['name', 'summary', 'content'],
+                                }
+                            },
+                            **filters
+                        }
+                    }
+                },
+                {
+                    'query': {
+                        'bool': {
+                            'must': [
+                                {
+                                    'text_expansion': {
+                                        'elser_embedding': {
+                                            'model_id': '.elser_model_2',
+                                            'model_text': parsed_query,
+                                        }
+                                    },
+                                }
+                            ],
+                            **filters,
+                        }
+                    },
+                },
+            ],
+            'rank': {
+                'rrf': {}
+            },
         }
     else:
         search_query = {
-            'must': {
-                'match_all': {}
+            'query': {
+                'bool': {
+                    'must': {
+                        'match_all': {}
+                    },
+                    **filters
+                }
             }
         }
 
     results = es.search(
-        query={
-            'bool': {
-                **search_query,
-                **filters
-            }
-        },
-        knn={
-            'field': 'embedding',
-            'query_vector': es.get_embedding(parsed_query),
-            'k': 10,
-            'num_candidates': 50,
-            **filters,
-        },
-        rank={
-            'rrf': {}
-        },
+        **search_query,
         aggs={
             'category-agg': {
                 'terms': {
@@ -129,3 +148,13 @@ def extract_filters(query):
         query = re.sub(filter_regex, '', query).strip()
 
     return {'filter': filters}, query
+
+@app.cli.command()
+def deploy_elser():
+    """Deploy the ELSER v2 model to Elasticsearch."""
+    try:
+        es.deploy_elser()
+    except Exception as exc:
+        print(f'Error: {exc}')
+    else:
+        print(f'ELSER model deployed.')
